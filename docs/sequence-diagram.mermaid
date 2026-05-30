@@ -1,0 +1,47 @@
+sequenceDiagram
+    participant U as 用户/浏览器
+    participant F as 前端(App)
+    participant B as 后端(Express)
+    participant M as AuthMiddleware
+    participant DB as SQLite
+
+    U->>F: 访问系统
+    F->>F: 检查 localStorage token
+
+    alt 有 token
+        F->>B: 请求带 Authorization: Bearer token
+        B->>M: authMiddleware.optionalAuth()
+        M->>M: jwt.verify(token, secret)
+        alt token 有效
+            M-->>B: req.user = { id, username, role }
+        else token 无效或过期
+            M-->>B: req.user = { role: guest }
+            B-->>F: 401 Unauthorized (写操作时)
+            F->>F: 清除 token，跳转 /login
+        end
+    else 无 token（访客模式）
+        F->>B: 请求无 Authorization header
+        B->>M: authMiddleware.optionalAuth()
+        M-->>B: req.user = { role: guest }
+        alt 读操作
+            B-->>F: 返回数据（全局可见）
+        else 写操作
+            M->>M: requireAuth() 拦截
+            B-->>F: 401 code:401 message:请先登录
+            F->>F: 弹出登录提示
+        end
+    end
+
+    U->>F: 输入用户名密码，点击登录
+    F->>B: POST /api/auth/login { username, password }
+    B->>DB: SELECT * FROM users WHERE username = ?
+    DB-->>B: user 记录
+    B->>B: bcrypt.compare(password, user.password_hash)
+    alt 密码正确
+        B->>B: jwt.sign({ id, username, role }, secret, { expiresIn: 24h })
+        B-->>F: { token, user }
+        F->>F: localStorage.setItem(ads_token, token)
+        F->>F: authStore.setUser(user)
+    else 密码错误
+        B-->>F: { code: 1, message: 用户名或密码错误 }
+    end

@@ -1,0 +1,139 @@
+classDiagram
+    class UserModel {
+        -db: Database
+        +findByUsername(username: string): User|null
+        +findById(id: number): User|null
+        +findAll(): User[]
+        +create(data: CreateUserInput): User
+        +update(id: number, data: UpdateUserInput): User
+        +delete(id: number): boolean
+        +verifyPassword(username: string, password: string): User|null
+    }
+
+    class VideoModel {
+        -db: Database
+        +findAll(filters: VideoFilterInput): PaginatedResult
+        +findById(id: number): Video|null
+        +create(data: CreateVideoInput): Video
+        +update(id: number, data: UpdateVideoInput): Video
+        +delete(id: number): boolean
+    }
+
+    class ProxyModel {
+        -db: Database
+        +findAll(filters: ProxyFilterInput): PaginatedResult
+        +findById(id: number): Proxy|null
+        +create(data: ProxyInput): Proxy
+        +batchCreate(proxies: ProxyInput[]): BatchResult
+        +updateGeo(id: number, country: string, city: string): Proxy
+        +updateActualIp(id: number, actualIp: string): Proxy
+        +findByUserId(userId: number): Proxy[]
+    }
+
+    class TaskModel {
+        -db: Database
+        +findAll(filters: TaskFilterInput): Task[]
+        +findById(id: number): Task|null
+        +create(data: TaskInput): Task
+        +update(id: number, data: TaskInput): Task
+        +findByUserId(userId: number): Task[]
+    }
+
+    class ExecutionLogModel {
+        -db: Database
+        +create(data: LogInput): Log
+        +findByTask(taskId: number, filters: LogFilter): PaginatedResult
+    }
+
+    class EarningsModel {
+        -db: Database
+        +findByDateRange(filters: EarningsFilter): Earnings[]
+        +getSummary(filters: EarningsFilter): EarningsSummary
+    }
+
+    class AuthController {
+        -userModel: UserModel
+        +handleLogin(req, res): void
+        +handleLogout(req, res): void
+        +handleMe(req, res): void
+    }
+
+    class VideoController {
+        -videoModel: VideoModel
+        -videoMetaService: VideoMetaService
+        +handleList(req, res): void
+        +handleCreate(req, res): void
+        +handleGetById(req, res): void
+        +handleUpdate(req, res): void
+        +handleDelete(req, res): void
+        +handleFetchMeta(req, res): void
+    }
+
+    class UserController {
+        -userModel: UserModel
+        +handleList(req, res): void
+        +handleCreate(req, res): void
+        +handleUpdate(req, res): void
+        +handleDelete(req, res): void
+    }
+
+    class ProxyController {
+        -proxyModel: ProxyModel
+        -proxyService: ProxyService
+        -geoService: GeoService
+        +handleBatchParse(req, res): void
+        +handleVerifyIp(req, res): void
+        +handleBatchVerifyIp(req, res): void
+        +handleGeoRefresh(req, res): void
+        +handleList(req, res): void
+        +handleCreate(req, res): void
+    }
+
+    class GeoService {
+        -queue: RateLimiter
+        -apiKey: string
+        +lookup(ip: string): Promise~GeoResult~
+        +batchLookup(ips: string[]): Promise~GeoResult[]~
+    }
+
+    class VideoMetaService {
+        -adapters: Map~string, SiteAdapter~
+        +registerAdapter(site: string, adapter: SiteAdapter): void
+        +fetchMeta(url: string): Promise~VideoMeta~
+        +detectSite(url: string): string
+    }
+
+    class SiteAdapter {
+        <<interface>>
+        +siteName: string
+        +canHandle(url: string): boolean
+        +extractMeta(page: Page): Promise~VideoMeta~
+    }
+
+    class UpboltAdapter {
+        +siteName: string
+        +canHandle(url: string): boolean
+        +extractMeta(page: Page): Promise~VideoMeta~
+    }
+
+    class AuthMiddleware {
+        -jwtSecret: string
+        +requireAuth(req, res, next): void
+        +optionalAuth(req, res, next): void
+        +requireAdmin(req, res, next): void
+    }
+
+    class TaskEngine {
+        +getTaskStatus(taskId: number): TaskRuntimeInfo
+        +startTask(taskId: number): Promise~void~
+        #_executeSinglePlay(executor, proxy, proxyUrl, videoUrl): Promise~void~
+    }
+
+    VideoMetaService --> SiteAdapter : uses
+    UpboltAdapter ..|> SiteAdapter : implements
+    AuthController --> UserModel
+    VideoController --> VideoModel
+    VideoController --> VideoMetaService
+    UserController --> UserModel
+    ProxyController --> GeoService
+    TaskEngine --> ExecutionLogModel : creates logs with proxy_ip
